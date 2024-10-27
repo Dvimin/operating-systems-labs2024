@@ -11,6 +11,11 @@ public:
     static Daemon& getInstance();
 
     void start(const std::string& configPath);
+
+    bool checkAndHandleExistingDaemon();
+
+    void savePidToFile();
+
     void stop();
     void reloadConfig();
 
