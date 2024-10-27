@@ -4,13 +4,19 @@
 #include <string>
 #include <vector>
 
-struct Config {
-    std::vector<std::string> sourceDirs;
-    std::vector<std::string> destDirs;
-    std::vector<std::string> extensions;
-    int interval;
+class Config {
+public:
+    struct Rule {
+        std::string folder1;
+        std::string folder2;
+        std::string ext;
+    };
 
-    bool loadFromFile(const std::string& filename);
+    bool load(const std::string& filename);
+    const std::vector<Rule>& getRules() const;
+
+private:
+    std::vector<Rule> rules;
 };
 
-#endif
+#endif // CONFIG_H

@@ -1,115 +1,86 @@
 #include "daemon.h"
 #include <unistd.h>
+#include <syslog.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <iostream>
-#include <filesystem>
-#include <fstream>
-#include <signal.h>
-#include <string>
+#include <dirent.h>
+#include <cstring>
+#include <cstdlib>
+
+Daemon::Daemon() : interval(20) {
+    openlog("Daemon", LOG_PID | LOG_CONS, LOG_USER);
+}
 
 Daemon& Daemon::getInstance() {
     static Daemon instance;
     return instance;
 }
 
-Daemon::Daemon() {}
-
-Daemon::~Daemon() {}
-
-void Daemon::start(const std::string& configPath) {
-    if (!checkAndHandleExistingDaemon()) {
-        syslog(LOG_ERR, "Демон уже запущен. Завершение работы.");
-        return;
-    }
-
-    if (!config.loadFromFile(configPath)) {
-        syslog(LOG_ERR, "Ошибка загрузки конфигурации");
-        return;
-    }
-
+void Daemon::forkDaemon() {
     pid = fork();
     if (pid < 0) {
-        syslog(LOG_ERR, "Ошибка создания процесса");
-        return;
+        log("Fork failed");
+        exit(EXIT_FAILURE);
     }
     if (pid > 0) {
-        syslog(LOG_ERR, "PID больше нуля, процесс уже запущен");
-        exit(0);
+        exit(EXIT_SUCCESS);
     }
-
-    umask(0);
-    setsid();
-    chdir("/");
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-    std::cout << "Не упал " << std::endl;
-
-    openlog("DaemonExample", LOG_PID | LOG_CONS, LOG_DAEMON);
-
-
-    signal(SIGHUP, [](int signal) { Daemon::getInstance().reloadConfig(); });
-    signal(SIGTERM, [](int signal) { Daemon::getInstance().stop(); });
-    savePidToFile();
-
-    run();
-}
-
-bool Daemon::checkAndHandleExistingDaemon() {
-    std::ifstream pidFile("daemon.pid");
-    std::string line;
-    if (std::getline(pidFile, line)) {
-        int existingPid = std::stoi(line);
-        if (kill(existingPid, 0) == 0) {
-            return false;
-        }
+    if (setsid() < 0) {
+        log("Failed to create new session");
+        exit(EXIT_FAILURE);
     }
-    return true;
+    signal(SIGHUP, [](int signum) { getInstance().signalHandler(signum); });
+    signal(SIGTERM, [](int signum) { getInstance().signalHandler(signum); });
 }
 
-void Daemon::savePidToFile() {
-    std::ofstream pidFile("daemon.pid");
-    pidFile << getpid();
-}
-
-void Daemon::run() {
+void Daemon::run(const std::string& configPath) {
+    forkDaemon();
     while (true) {
+        readConfig(configPath);
         moveFiles();
-        usleep(config.interval * 1000000);
+        sleep(interval);
+    }
+}
+
+void Daemon::readConfig(const std::string& configPath) {
+    if (!config.load(configPath)) {
+        log("Failed to load configuration");
     }
 }
 
 void Daemon::moveFiles() {
-    for (size_t i = 0; i < config.sourceDirs.size(); ++i) {
-        const auto& sourceDir = config.sourceDirs[i];
-        const auto& destDir = config.destDirs[i];
-        const auto& ext = config.extensions[i];
+    for (const auto& rule : config.getRules()) {
+        DIR* dir = opendir(rule.folder1.c_str());
+        if (dir == nullptr) {
+            log("Failed to open directory: " + rule.folder1);
+            continue;
+        }
 
-        for (const auto& entry : std::filesystem::directory_iterator(sourceDir)) {
-            if (entry.is_regular_file()) {
-                auto filename = entry.path().filename().string();
-                if (filename.substr(filename.find_last_of('.') + 1) != ext) {
-                    std::filesystem::rename(entry.path(), destDir + "/" + filename);
-                    syslog(LOG_INFO, "Перемещён файл: %s -> %s", entry.path().c_str(), destDir.c_str());
-                }
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string filename = entry->d_name;
+            if (filename == "." || filename == "..") continue;
+
+            if (filename.substr(filename.find_last_of(".") + 1) != rule.ext) {
+                std::string srcPath = rule.folder1 + "/" + filename;
+                std::string dstPath = rule.folder2 + "/" + filename;
+                rename(srcPath.c_str(), dstPath.c_str());
+                log("Moved: " + srcPath + " -> " + dstPath);
             }
         }
+        closedir(dir);
     }
 }
 
-void Daemon::stop() {
-    syslog(LOG_INFO, "Остановка демона");
-    closelog();
-    exit(0);
+void Daemon::signalHandler(int signal) {
+    if (signal == SIGHUP) {
+        log("Received SIGHUP, reloading config");
+    } else if (signal == SIGTERM) {
+        log("Received SIGTERM, exiting");
+        closelog();
+        exit(EXIT_SUCCESS);
+    }
 }
 
-void Daemon::reloadConfig() {
-    syslog(LOG_INFO, "Перезагрузка конфигурации");
-
-    if (!config.loadFromFile("/home/adminmisha/Documents/Polytech/Operating_systems/lab1/config.txt")) {
-        syslog(LOG_ERR, "Ошибка загрузки конфигурации при перезагрузке");
-    } else {
-        syslog(LOG_INFO, "Конфигурация успешно перезагружена");
-    }
+void Daemon::log(const std::string& message) {
+    syslog(LOG_NOTICE, "%s", message.c_str());
 }
