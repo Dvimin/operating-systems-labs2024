@@ -1,3 +1,5 @@
+#include <sys/syslog.h>
+
 #include "daemon.h"
 
 int main(int argc, char **argv) {

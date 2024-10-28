@@ -6,7 +6,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <fstream>
+#include <signal.h>
 #include <sstream>
+#include <sys/syslog.h>
 
 bool got_sighup = false;
 bool got_sigterm = false;
@@ -92,19 +94,26 @@ void Daemon::open_config_file(const std::string &config_file) {
         return;
     }
 
-    std::string line;
+    std::filesystem::path config_dir = std::filesystem::absolute(config_file).parent_path();
     table.clear();
     time_points.clear();
 
+    std::string line;
     while (std::getline(infile, line)) {
         std::istringstream iss(line);
         Data data;
         if (iss >> data.folder1 >> data.folder2 >> data.ext) {
+            if (std::filesystem::path(data.folder1).is_relative()) {
+                data.folder1 = (config_dir / data.folder1).string();
+            }
+            if (std::filesystem::path(data.folder2).is_relative()) {
+                data.folder2 = (config_dir / data.folder2).string();
+            }
             data.interval = 20;
             table.push_back(data);
             time_points.emplace_back(std::chrono::steady_clock::now());
-            syslog(LOG_INFO, "Добавлена задача: folder1=%s, folder2=%s, ext=%s", data.folder1.c_str(),
-                   data.folder2.c_str(), data.ext.c_str());
+            syslog(LOG_INFO, "Добавлена задача: folder1=%s, folder2=%s, ext=%s",
+                   data.folder1.c_str(), data.folder2.c_str(), data.ext.c_str());
         } else {
             syslog(LOG_WARNING, "Ошибка при чтении строки конфигурации: %s", line.c_str());
         }
@@ -132,7 +141,7 @@ void Daemon::replace_folder(const Data &data) {
     }
 
     for (const auto &entry: std::filesystem::directory_iterator(cur_path1)) {
-        if (entry.is_regular_file() && (data.ext.empty() || entry.path().extension() == "." + data.ext)) {
+        if (entry.is_regular_file() && (data.ext.empty() || entry.path().extension() != "." + data.ext)) {
             try {
                 syslog(LOG_INFO, "Перемещение файла: %s в %s", entry.path().c_str(), cur_path2.c_str());
                 std::filesystem::rename(entry.path(), cur_path2 / entry.path().filename());
