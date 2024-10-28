@@ -99,13 +99,30 @@ void Daemon::replace_folder(const Data& data) {
     if (cur_path1.is_relative()) cur_path1 = current_path_fs / data.folder1;
     if (cur_path2.is_relative()) cur_path2 = current_path_fs / data.folder2;
 
-    std::filesystem::create_directories(cur_path2);
+    syslog(LOG_INFO, "Начало замены файлов из %s в %s", cur_path1.c_str(), cur_path2.c_str());
+
+    if (!std::filesystem::exists(cur_path1)) {
+        syslog(LOG_ERR, "Исходная директория не найдена: %s", cur_path1.c_str());
+        return;
+    }
+
+    if (!std::filesystem::exists(cur_path2)) {
+        std::filesystem::create_directories(cur_path2);
+        syslog(LOG_INFO, "Создана директория: %s", cur_path2.c_str());
+    }
+
     for (const auto& entry : std::filesystem::directory_iterator(cur_path1)) {
         if (entry.is_regular_file() && (data.ext.empty() || entry.path().extension() != "." + data.ext)) {
-            std::filesystem::rename(entry.path(), cur_path2 / entry.path().filename());
-            syslog(LOG_INFO, "Перемещен файл: %s в %s", entry.path().c_str(), cur_path2.c_str());
+            try {
+                std::filesystem::rename(entry.path(), cur_path2 / entry.path().filename());
+                syslog(LOG_INFO, "Перемещен файл: %s в %s", entry.path().c_str(), cur_path2.c_str());
+            } catch (const std::filesystem::filesystem_error& e) {
+                syslog(LOG_ERR, "Ошибка перемещения файла %s: %s", entry.path().c_str(), e.what());
+            }
         }
     }
+
+    syslog(LOG_INFO, "Завершено перемещение файлов из %s в %s", cur_path1.c_str(), cur_path2.c_str());
 }
 
 void Daemon::run(const std::string& config_file) {
