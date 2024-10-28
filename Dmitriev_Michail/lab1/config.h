@@ -12,8 +12,9 @@ public:
         std::string ext;
     };
 
-    bool load(const std::string& filename);
-    const std::vector<Rule>& getRules() const;
+    bool load(const std::string &filename);
+
+    const std::vector<Rule> &getRules() const;
 
 private:
     std::vector<Rule> rules;

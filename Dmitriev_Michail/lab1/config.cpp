@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 
-bool Config::load(const std::string& filename) {
+bool Config::load(const std::string &filename) {
     std::ifstream file(filename);
     if (!file.is_open()) return false;
 
@@ -18,6 +18,6 @@ bool Config::load(const std::string& filename) {
     return true;
 }
 
-const std::vector<Config::Rule>& Config::getRules() const {
+const std::vector<Config::Rule> &Config::getRules() const {
     return rules;
 }

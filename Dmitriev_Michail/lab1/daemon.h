@@ -5,12 +5,6 @@
 #include <string>
 #include <filesystem>
 #include <chrono>
-#include <syslog.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <fstream>
-#include <sstream>
 
 struct Data {
     std::string folder1;
@@ -21,29 +15,37 @@ struct Data {
 
 class Daemon {
 public:
-    static Daemon& getInstance() {
+    static Daemon &getInstance() {
         static Daemon instance;
         return instance;
     }
 
-    void start(const std::string& config_file);
+    void start(const std::string &config_file);
 
 private:
-    Daemon() : got_sighup(false), got_sigterm(false) {}
-    Daemon(const Daemon&) = delete;
-    Daemon& operator=(const Daemon&) = delete;
+    Daemon() : got_sighup(false), got_sigterm(false) {
+    }
 
-    void replace_folder(const Data& data);
-    void open_config_file(const std::string& config_file);
+    Daemon(const Daemon &) = delete;
+
+    Daemon &operator=(const Daemon &) = delete;
+
+    void replace_folder(const Data &data);
+
+    void open_config_file(const std::string &config_file);
+
     void create_pid_file();
+
     void daemonize();
-    void run(const std::string& config_file);
+
+    void run(const std::string &config_file);
+
     void signal_handler(int sig);
 
     bool got_sighup;
     bool got_sigterm;
     std::vector<Data> table;
-    std::vector<std::chrono::time_point<std::chrono::steady_clock>> time_points;
+    std::vector<std::chrono::time_point<std::chrono::steady_clock> > time_points;
     std::string current_path;
 };
 #endif // DAEMON_HPP

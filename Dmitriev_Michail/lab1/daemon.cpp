@@ -27,7 +27,7 @@ void Daemon::signal_handler(int sig) {
     }
 }
 
-void Daemon::start(const std::string& config_file) {
+void Daemon::start(const std::string &config_file) {
     syslog(LOG_INFO, "Запуск демона с конфигурационным файлом: %s", config_file.c_str());
     current_path = std::filesystem::absolute(config_file).parent_path().string();
     daemonize();
@@ -84,7 +84,7 @@ void Daemon::daemonize() {
     create_pid_file();
 }
 
-void Daemon::open_config_file(const std::string& config_file) {
+void Daemon::open_config_file(const std::string &config_file) {
     syslog(LOG_INFO, "Открытие конфигурационного файла: %s", config_file.c_str());
     std::ifstream infile(config_file);
     if (!infile.is_open()) {
@@ -103,14 +103,15 @@ void Daemon::open_config_file(const std::string& config_file) {
             data.interval = 20;
             table.push_back(data);
             time_points.emplace_back(std::chrono::steady_clock::now());
-            syslog(LOG_INFO, "Добавлена задача: folder1=%s, folder2=%s, ext=%s", data.folder1.c_str(), data.folder2.c_str(), data.ext.c_str());
+            syslog(LOG_INFO, "Добавлена задача: folder1=%s, folder2=%s, ext=%s", data.folder1.c_str(),
+                   data.folder2.c_str(), data.ext.c_str());
         } else {
             syslog(LOG_WARNING, "Ошибка при чтении строки конфигурации: %s", line.c_str());
         }
     }
 }
 
-void Daemon::replace_folder(const Data& data) {
+void Daemon::replace_folder(const Data &data) {
     syslog(LOG_INFO, "Начало замены файлов из %s в %s", data.folder1.c_str(), data.folder2.c_str());
 
     auto cur_path1 = std::filesystem::path(data.folder1);
@@ -130,24 +131,25 @@ void Daemon::replace_folder(const Data& data) {
         syslog(LOG_INFO, "Создана директория: %s", cur_path2.c_str());
     }
 
-    for (const auto& entry : std::filesystem::directory_iterator(cur_path1)) {
-        if (entry.is_regular_file() && (data.ext.empty() || entry.path().extension() != "." + data.ext)) {
+    for (const auto &entry: std::filesystem::directory_iterator(cur_path1)) {
+        if (entry.is_regular_file() && (data.ext.empty() || entry.path().extension() == "." + data.ext)) {
             try {
                 syslog(LOG_INFO, "Перемещение файла: %s в %s", entry.path().c_str(), cur_path2.c_str());
                 std::filesystem::rename(entry.path(), cur_path2 / entry.path().filename());
                 syslog(LOG_INFO, "Перемещен файл: %s в %s", entry.path().c_str(), cur_path2.c_str());
-            } catch (const std::filesystem::filesystem_error& e) {
+            } catch (const std::filesystem::filesystem_error &e) {
                 syslog(LOG_ERR, "Ошибка перемещения файла %s: %s", entry.path().c_str(), e.what());
             }
         } else {
-            syslog(LOG_INFO, "Пропущен файл: %s (не является обычным файлом или имеет запрещенное расширение)", entry.path().c_str());
+            syslog(LOG_INFO, "Пропущен файл: %s (не является обычным файлом или имеет запрещенное расширение)",
+                   entry.path().c_str());
         }
     }
 
     syslog(LOG_INFO, "Завершено перемещение файлов из %s в %s", cur_path1.c_str(), cur_path2.c_str());
 }
 
-void Daemon::run(const std::string& config_file) {
+void Daemon::run(const std::string &config_file) {
     syslog(LOG_INFO, "Запуск основного цикла демона");
 
     while (true) {
@@ -167,12 +169,13 @@ void Daemon::run(const std::string& config_file) {
             auto now_time = std::chrono::steady_clock::now();
             int diff = std::chrono::duration_cast<std::chrono::seconds>(now_time - time_points[i]).count();
 
-            syslog(LOG_INFO, "Проверка задачи %zu: интервал = %d, прошедшее время = %d секунд", i, table[i].interval, diff);
+            syslog(LOG_INFO, "Проверка задачи %zu: интервал = %d, прошедшее время = %d секунд", i, table[i].interval,
+                   diff);
 
             if (diff >= table[i].interval) {
                 syslog(LOG_INFO, "Запуск замены файлов для задачи %zu", i);
                 replace_folder(table[i]);
-                time_points[i] = now_time; // Сброс времени
+                time_points[i] = now_time;
             }
         }
 
