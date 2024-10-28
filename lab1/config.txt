@@ -1,1 +1,0 @@
-/home/adminmisha/Documents/Polytech/Operating_systems/lab1/folder1 /home/adminmisha/Documents/Polytech/Operating_systems/lab1/folder2 ext
